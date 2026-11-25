@@ -1,0 +1,35 @@
+{
+  "name": "balthasar-beilagen",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Word-Add-in für Beilagenverweise, Beweismittelverzeichnis und PDF-Paket. Balthasar Legal AG.",
+  "type": "module",
+  "scripts": {
+    "certs": "node scripts/generate-certs.mjs",
+    "icons": "node scripts/generate-icons.mjs",
+    "dev": "node scripts/generate-certs.mjs && vite --host 0.0.0.0 --port 4301",
+    "build": "tsc --noEmit && vite build && node scripts/copy-manifest.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "samples": "WRITE_SAMPLES=1 vitest run test/stamp-e2e.test.ts",
+    "manifest:host": "node scripts/set-host.mjs",
+    "manifest:validate": "office-addin-manifest validate manifest.xml"
+  },
+  "dependencies": {
+    "jszip": "3.10.2",
+    "pdf-lib": "1.17.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/office-js": "1.0.618",
+    "@types/react": "18.3.18",
+    "@types/react-dom": "18.3.5",
+    "@vitejs/plugin-react": "4.3.4",
+    "@types/node": "22.13.10",
+    "office-addin-manifest": "1.13.6",
+    "typescript": "5.7.3",
+    "vite": "6.2.0",
+    "vitest": "3.0.9"
+  }
+}

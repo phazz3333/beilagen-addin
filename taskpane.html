@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Beilagen · Balthasar Legal</title>
+    <link rel="icon" href="./assets/icon-32.png" />
+    <script>
+      window.__historyPush = history.pushState;
+      window.__historyReplace = history.replaceState;
+    </script>
+    <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+    <script>
+      if (window.__historyPush) history.pushState = window.__historyPush;
+      if (window.__historyReplace) history.replaceState = window.__historyReplace;
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/taskpane/main.tsx"></script>
+  </body>
+</html>
