@@ -5,6 +5,12 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
+
+function resolveBase(): string {
+  const raw = process.env.VITE_BASE?.trim();
+  if (!raw || raw === "." || raw === "./") return "./";
+  return raw.endsWith("/") ? raw : `${raw}/`;
+}
 const certFile = path.join(root, "certs", "dev-cert.pem");
 const keyFile = path.join(root, "certs", "dev-key.pem");
 
@@ -19,7 +25,7 @@ export default defineConfig(({ command }) => {
 
   return {
     plugins: [react()],
-    base: "./",
+    base: resolveBase(),
     build: {
       outDir: "dist",
       emptyOutDir: true,

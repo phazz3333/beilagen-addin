@@ -13,7 +13,8 @@
     "test": "vitest run",
     "samples": "WRITE_SAMPLES=1 vitest run test/stamp-e2e.test.ts",
     "manifest:host": "node scripts/set-host.mjs",
-    "manifest:validate": "office-addin-manifest validate manifest.xml"
+    "manifest:production": "node scripts/set-host.mjs https://phazz3333.github.io/beilagen-addin manifest.production.xml",
+    "manifest:validate": "office-addin-manifest validate manifest.xml && office-addin-manifest validate manifest.production.xml"
   },
   "dependencies": {
     "jszip": "3.10.2",

@@ -40,6 +40,18 @@ Die Bezeichnungen im Menü können je nach Word-Version leicht abweichen. Der Ka
 
 Ein Sideload über eine Netzwerkfreigabe ist nur für den Test gedacht, nicht für den produktiven Betrieb. Er funktioniert nur unter Windows. Wird die Gruppe im Menüband später geändert, muss jede Person das Add-in neu hinzufügen.
 
+## Testinstallation über GitHub Pages
+
+Für die Testrunde liegt das Add-in auf GitHub Pages. Dafür braucht es keinen lokalen Server und kein Entwicklungszertifikat. Der Aufgabenbereich und die Symbole kommen von `https://phazz3333.github.io/beilagen-addin/`.
+
+1. Manifest herunterladen: [manifest.xml](https://phazz3333.github.io/beilagen-addin/manifest.xml). Die Datei lokal speichern.
+2. Sideload unter Windows, auch auf ARM64 (Snapdragon), über einen Freigabeordner, wie in Abschnitt 2. In den Ordner kommt nur diese heruntergeladene Datei. `npm run dev` entfällt.
+3. Wo Word «Eigenes Add-In hochladen» anbietet, unter Weitere Add-Ins, Meine Add-Ins: dieselbe Datei dort auswählen. Das gibt es in Word im Web und in neueren Desktop-Fassungen. Auf Windows on ARM64 ist der Weg derselbe, das Add-in besteht nur aus Webinhalten.
+
+Danach erscheint in der Registerkarte Start die Gruppe Beilagen. Word muss Microsoft 365 sein. Ist die Seitenadresse im Browser nicht erreichbar, bleibt der Aufgabenbereich leer.
+
+Das Manifest für den lokalen Entwicklungsserver bleibt `manifest.xml` im Repository und zeigt weiter auf `https://localhost:4301`. Für die Testrunde gilt ausschliesslich die Datei von GitHub Pages.
+
 ## 3. Statisches Hosting
 
 Der Bau erzeugt eine statische Website in `dist/`:
