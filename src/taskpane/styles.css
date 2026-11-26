@@ -175,6 +175,26 @@ input:focus, button:focus-visible {
 .row { display: flex; gap: 8px; }
 .row > button { flex: 1; width: auto; }
 
+.field { margin-top: 10px; }
+
+.segmented.order {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 4px;
+}
+
+.segmented.order button { font-size: 12px; font-weight: 600; }
+
+.preview {
+  margin: 2px 0 0;
+  font-weight: 650;
+}
+
+.row > input {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
 .segmented, .tabs {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

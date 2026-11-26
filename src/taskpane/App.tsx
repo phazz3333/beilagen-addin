@@ -1,12 +1,21 @@
 import { useEffect, useId, useState } from "react";
-import { ABBREVIATION_NAMES, ABBREVIATIONS, type Abbreviation, type BeilagenState, type Exhibit } from "../domain/types";
-import { emptyState } from "../domain/types";
+import { buildCitation, referenceLabelPlain } from "../domain/labels";
+import {
+  ABBREVIATION_NAMES,
+  ABBREVIATIONS,
+  emptyState,
+  isPresetPrefix,
+  sanitizePrefix,
+  type BeilagenState,
+  type CitationOrder,
+  type Exhibit,
+} from "../domain/types";
 import { formatSwissDate } from "../domain/text";
-import { referenceLabelPlain } from "../domain/labels";
 import { matchPdfFiles } from "../domain/matchPdfs";
 import type { BeilagenHost, TrackingState } from "../office/host";
 import {
   changeAbbreviation,
+  changeCitationOrder,
   insertExistingExhibit,
   insertNewExhibit,
   placeDirectory,
@@ -38,6 +47,7 @@ const MAX_PDF = 80 * 1024 * 1024;
 export function App({ host, muster, wordApi }: AppProps) {
   const titleId = useId();
   const dateId = useId();
+  const prefixId = useId();
   const [state, setState] = useState<BeilagenState>(emptyState());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -45,10 +55,11 @@ export function App({ host, muster, wordApi }: AppProps) {
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
-  const [tab, setTab] = useState<"new" | "existing">("new");
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
-  const [pendingAbbr, setPendingAbbr] = useState<Abbreviation | null>(null);
+  const [pendingAbbr, setPendingAbbr] = useState<string | null>(null);
+  const [pendingOrder, setPendingOrder] = useState<CitationOrder | null>(null);
+  const [customDraft, setCustomDraft] = useState("");
   const [directoryPresent, setDirectoryPresent] = useState(false);
   const [tracking, setTracking] = useState<TrackingState>("unknown");
   const [files, setFiles] = useState<Map<string, StoredPdf>>(new Map());
@@ -128,7 +139,12 @@ export function App({ host, muster, wordApi }: AppProps) {
     }
   }
 
-  function chooseAbbreviation(next: Abbreviation) {
+  useEffect(() => {
+    if (state.abbreviation && !isPresetPrefix(state.abbreviation)) setCustomDraft(state.abbreviation);
+    else setCustomDraft("");
+  }, [state.abbreviation]);
+
+  function chooseAbbreviation(next: string) {
     if (next === state.abbreviation) {
       setPendingAbbr(null);
       return;
@@ -138,6 +154,27 @@ export function App({ host, muster, wordApi }: AppProps) {
       return;
     }
     void run(() => changeAbbreviation(host, state, next));
+  }
+
+  function chooseOrder(next: CitationOrder) {
+    if (next === state.citationOrder) {
+      setPendingOrder(null);
+      return;
+    }
+    if (state.exhibits.length > 0) {
+      setPendingOrder(next);
+      return;
+    }
+    void run(() => changeCitationOrder(host, state, next));
+  }
+
+  function applyCustomPrefix() {
+    const prefix = sanitizePrefix(customDraft);
+    if (!prefix) {
+      setError("Das eigene Kürzel darf Buchstaben, Ziffern, Punkt und Bindestrich enthalten, höchstens 12 Zeichen.");
+      return;
+    }
+    chooseAbbreviation(prefix);
   }
 
   async function onPickFile(exhibitId: string, list: FileList | null) {
@@ -261,14 +298,71 @@ export function App({ host, muster, wordApi }: AppProps) {
                 </button>
               ))}
             </div>
+            <label className="field" htmlFor={prefixId}>Eigenes Kürzel</label>
+            <div className="row">
+              <input
+                id={prefixId}
+                value={customDraft}
+                maxLength={12}
+                disabled={busy}
+                placeholder="z. B. BV"
+                onChange={(event) => setCustomDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    applyCustomPrefix();
+                  }
+                }}
+              />
+              <button type="button" className="secondary" disabled={busy || customDraft.trim() === ""} onClick={applyCustomPrefix}>
+                Übernehmen
+              </button>
+            </div>
             <p className="hint">
               {state.abbreviation
-                ? `${ABBREVIATION_NAMES[state.abbreviation]}. Erscheint in jedem Verweis, zum Beispiel «${state.abbreviation} 1».`
-                : "Kürzel für dieses Dokument wählen. Es wird im Dokument gespeichert."}
+                ? `${prefixHint(state.abbreviation)} Wird im Dokument gespeichert.`
+                : "Kürzel wählen oder ein eigenes eingeben. Es wird im Dokument gespeichert."}
             </p>
+            <form
+              className="stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void run(async () => {
+                  const result = await insertNewExhibit(host, state, { title, date });
+                  setTitle("");
+                  setDate("");
+                  return result;
+                });
+              }}
+            >
+              <label htmlFor={titleId}>Bezeichnung</label>
+              <input
+                id={titleId}
+                value={title}
+                maxLength={200}
+                disabled={busy}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Kaufvertrag vom 3. März 2025"
+              />
+              <label htmlFor={dateId}>Datum, optional</label>
+              <input id={dateId} type="date" value={date} disabled={busy} onChange={(event) => setDate(event.target.value)} />
+              <p className="hint">Reihenfolge im Verweis</p>
+              <div className="segmented order" role="radiogroup" aria-label="Reihenfolge im Verweis">
+                <button type="button" role="radio" aria-checked={state.citationOrder === "number-first"} disabled={busy} onClick={() => chooseOrder("number-first")}>
+                  Nummer zuerst
+                </button>
+                <button type="button" role="radio" aria-checked={state.citationOrder === "description-first"} disabled={busy} onClick={() => chooseOrder("description-first")}>
+                  Bezeichnung zuerst
+                </button>
+              </div>
+              <p className="preview">{previewCitation(state.abbreviation, state.citationOrder, title)}</p>
+              <button type="submit" className="primary" disabled={busy || !state.abbreviation || title.trim() === ""}>
+                {host.inWord ? "Am Cursor einfügen" : "Beilage erfassen"}
+              </button>
+            </form>
             {pendingAbbr ? (
               <div className="confirm">
-                <p>Kürzel auf {ABBREVIATION_NAMES[pendingAbbr]} ändern? Alle Verweise werden angepasst.</p>
+                <p>Kürzel auf {prefixHint(pendingAbbr)} ändern? Alle Verweise werden angepasst.</p>
                 <div className="row">
                   <button type="button" className="primary" disabled={busy} onClick={() => {
                     const next = pendingAbbr;
@@ -279,42 +373,28 @@ export function App({ host, muster, wordApi }: AppProps) {
                 </div>
               </div>
             ) : null}
+            {pendingOrder ? (
+              <div className="confirm">
+                <p>Reihenfolge ändern? Die Verweise im Text werden neu geschrieben. Einheitliche Zeichenformatierung bleibt erhalten.</p>
+                <div className="row">
+                  <button type="button" className="primary" disabled={busy} onClick={() => {
+                    const next = pendingOrder;
+                    setPendingOrder(null);
+                    void run(() => changeCitationOrder(host, state, next));
+                  }}>Ändern</button>
+                  <button type="button" className="secondary" onClick={() => setPendingOrder(null)}>Abbrechen</button>
+                </div>
+              </div>
+            ) : null}
           </section>
 
           <section className="card">
-            <h2>Verweis einfügen</h2>
-            <div className="tabs" role="tablist">
-              <button type="button" role="tab" aria-selected={tab === "new"} onClick={() => setTab("new")}>Neue Beilage</button>
-              <button type="button" role="tab" aria-selected={tab === "existing"} onClick={() => setTab("existing")}>Bestehende</button>
-            </div>
-            {tab === "new" ? (
-              <form
-                className="stack"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void run(async () => {
-                    const result = await insertNewExhibit(host, state, { title, date });
-                    setTitle("");
-                    setDate("");
-                    return result;
-                  });
-                }}
-              >
-                <label htmlFor={titleId}>Bezeichnung</label>
-                <input id={titleId} value={title} maxLength={200} disabled={busy} onChange={(event) => setTitle(event.target.value)} placeholder="Kaufvertrag" />
-                <label htmlFor={dateId}>Datum, optional</label>
-                <input id={dateId} type="date" value={date} disabled={busy} onChange={(event) => setDate(event.target.value)} />
-                <button type="submit" className="primary" disabled={busy || !state.abbreviation || title.trim() === ""}>
-                  {host.inWord ? "Am Cursor einfügen" : "Beilage erfassen"}
-                </button>
-              </form>
-            ) : (
-              <ExistingList
-                state={state}
-                busy={busy}
-                onInsert={(id) => void run(() => insertExistingExhibit(host, state, id))}
-              />
-            )}
+            <h2>Bestehende Beilage</h2>
+            <ExistingList
+              state={state}
+              busy={busy}
+              onInsert={(id) => void run(() => insertExistingExhibit(host, state, id))}
+            />
           </section>
 
           <section className="card">
@@ -358,6 +438,7 @@ export function App({ host, muster, wordApi }: AppProps) {
                   key={exhibit.id}
                   exhibit={exhibit}
                   abbreviation={state.abbreviation}
+                  citationOrder={state.citationOrder}
                   file={files.get(exhibit.id)}
                   busy={busy}
                   editing={editing === exhibit.id}
@@ -463,6 +544,7 @@ function ExistingList({
 function ExhibitRow({
   exhibit,
   abbreviation,
+  citationOrder,
   file,
   busy,
   editing,
@@ -478,7 +560,8 @@ function ExhibitRow({
   onClear,
 }: {
   exhibit: Exhibit;
-  abbreviation: Abbreviation | null;
+  abbreviation: string | null;
+  citationOrder: CitationOrder;
   file: StoredPdf | undefined;
   busy: boolean;
   editing: boolean;
@@ -500,7 +583,11 @@ function ExhibitRow({
       <div className="exhibit-main">
         <span className="pill">{label}</span>
         <div className="existing-copy">
-          <span className="title">{exhibit.title}</span>
+          <span className="title">
+            {abbreviation && exhibit.number > 0
+              ? buildCitation(abbreviation, exhibit.number, exhibit.title, citationOrder).plain.replaceAll("\u00A0", " ")
+              : exhibit.title}
+          </span>
           <span className="meta">{formatSwissDate(exhibit.date) || "ohne Datum"}</span>
           <span className={file ? "file-ok" : "file-miss"}>{file ? file.name : "PDF fehlt"}</span>
         </div>
@@ -544,4 +631,14 @@ function ExhibitRow({
       ) : null}
     </li>
   );
+}
+
+function prefixHint(prefix: string): string {
+  return isPresetPrefix(prefix) ? `${prefix} (${ABBREVIATION_NAMES[prefix]})` : prefix;
+}
+
+function previewCitation(prefix: string | null, order: CitationOrder, description: string): string {
+  if (!prefix) return "Zuerst ein Kürzel wählen.";
+  const sample = description.trim() || "Kaufvertrag vom 3. März 2025";
+  return buildCitation(prefix, 1, sample, order).plain.replaceAll("\u00A0", " ");
 }

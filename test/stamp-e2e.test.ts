@@ -53,6 +53,7 @@ describe("PDF-Stempel", () => {
       revision: 1,
       savedAt: "",
       abbreviation: "KB",
+      citationOrder: "number-first",
       exhibits: [
         { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben Müller", date: "2024-04-02", number: 2 },
         { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag", date: "2024-03-12", number: 1 },

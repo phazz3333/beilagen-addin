@@ -1,6 +1,6 @@
 import { referenceLabelPlain } from "./labels";
 import { escapeHtml, formatSwissDate } from "./text";
-import type { Abbreviation, BeilagenState } from "./types";
+import { isPresetPrefix, type Abbreviation, type BeilagenState } from "./types";
 
 export interface DirectoryRow {
   label: string;
@@ -11,7 +11,7 @@ export interface DirectoryRow {
 export interface DirectoryModel {
   heading: string;
   kind: string;
-  abbreviation: Abbreviation;
+  abbreviation: string;
   rows: DirectoryRow[];
 }
 
@@ -38,7 +38,7 @@ export function directoryModel(state: BeilagenState): DirectoryModel {
     }));
   return {
     heading: "Beweismittelverzeichnis",
-    kind: KIND[abbreviation],
+    kind: isPresetPrefix(abbreviation) ? KIND[abbreviation] : `Beilagen ${abbreviation}`,
     abbreviation,
     rows,
   };

@@ -7,6 +7,7 @@ const state: BeilagenState = {
   revision: 4,
   savedAt: "2026-03-01T08:30:00.000Z",
   abbreviation: "KB",
+  citationOrder: "number-first",
   exhibits: [
     { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag Müller & Söhne <Entwurf>", date: "2024-03-12", number: 1 },
     { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben", date: "", number: 0 },
@@ -30,7 +31,7 @@ describe("Custom XML", () => {
 
   it("verwirft ungültige Kürzel und Daten", () => {
     const xml = `<Beilagen xmlns="urn:balthasar-legal:beilagen:v1" version="1" revision="1" savedAt="">
-      <Kuerzel>XY</Kuerzel>
+      <Kuerzel>A/B</Kuerzel>
       <Eintrag id="11111111-1111-4111-8111-111111111111" nummer="2" datum="2024-13-40"><Bezeichnung>Vertrag</Bezeichnung></Eintrag>
       <Eintrag id="kein-uuid" nummer="1"><Bezeichnung>Weg</Bezeichnung></Eintrag>
     </Beilagen>`;
@@ -42,6 +43,7 @@ describe("Custom XML", () => {
 
   it("liefert für ein neues Dokument einen leeren Stand", () => {
     expect(emptyState().abbreviation).toBeNull();
+    expect(emptyState().citationOrder).toBe("number-first");
     expect(() => parseState("<anders/>")).toThrow(/unlesbar/);
   });
 });

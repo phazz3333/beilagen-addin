@@ -1,8 +1,8 @@
 import { directoryModel, renderDirectoryHtml, renderDirectoryPlain } from "../domain/directory";
-import { referenceLabel, referenceLabelPlain } from "../domain/labels";
+import { buildCitation, referenceLabelPlain, type CitationText } from "../domain/labels";
 import { renumberExhibits } from "../domain/numbering";
 import { normalizeDate, sanitizeTitle } from "../domain/text";
-import type { Abbreviation, BeilagenState, Exhibit } from "../domain/types";
+import { sanitizePrefix, type BeilagenState, type CitationOrder, type Exhibit } from "../domain/types";
 import type { BeilagenHost, LabelWriteResult } from "../office/host";
 
 export interface ActionResult {
@@ -15,9 +15,11 @@ export interface ActionResult {
 export async function changeAbbreviation(
   host: BeilagenHost,
   state: BeilagenState,
-  abbreviation: Abbreviation,
+  abbreviation: string,
 ): Promise<ActionResult> {
-  const next = { ...state, abbreviation };
+  const prefix = sanitizePrefix(abbreviation);
+  if (!prefix) throw new Error("Das Kürzel ist ungültig.");
+  const next = { ...state, abbreviation: prefix };
   if (state.exhibits.length === 0) {
     const saved = await host.save(next);
     return {
@@ -35,6 +37,29 @@ export async function changeAbbreviation(
   };
 }
 
+export async function changeCitationOrder(
+  host: BeilagenHost,
+  state: BeilagenState,
+  citationOrder: CitationOrder,
+): Promise<ActionResult> {
+  const next = { ...state, citationOrder };
+  if (state.exhibits.length === 0 || !state.abbreviation) {
+    const saved = await host.save(next);
+    return {
+      state: saved,
+      status: "Reihenfolge gespeichert.",
+      directoryPresent: (await host.directoryCount()) > 0,
+    };
+  }
+  const refreshed = await refreshNumbers(host, next);
+  return {
+    state: refreshed.state,
+    status: "Reihenfolge gespeichert. Verweise angepasst.",
+    warning: refreshed.warning,
+    directoryPresent: refreshed.directoryPresent,
+  };
+}
+
 export async function insertNewExhibit(
   host: BeilagenHost,
   state: BeilagenState,
@@ -46,13 +71,19 @@ export async function insertNewExhibit(
   const date = normalizeDate(input.date);
   if (input.date.trim() && !date) throw new Error("Das Datum ist ungültig.");
   const exhibit: Exhibit = { id: crypto.randomUUID(), title, date, number: 0 };
-  await host.insertReference(exhibit.id, "…", title);
+  await host.insertReference(
+    exhibit.id,
+    buildCitation(state.abbreviation, 0, title, state.citationOrder),
+  );
   const refreshed = await refreshNumbers(host, {
     ...state,
     exhibits: [...state.exhibits, exhibit],
   });
   const number = refreshed.state.exhibits.find((item) => item.id === exhibit.id)?.number ?? 0;
-  const label = number > 0 ? referenceLabelPlain(state.abbreviation, number) : "Beilage";
+  const label =
+    number > 0
+      ? buildCitation(state.abbreviation, number, title, state.citationOrder).plain.replaceAll("\u00A0", " ")
+      : title;
   const where = host.inWord ? "am Cursor eingefügt" : "erfasst";
   return {
     state: refreshed.state,
@@ -70,7 +101,10 @@ export async function insertExistingExhibit(
   if (!state.abbreviation) throw new Error("Zuerst das Kürzel der Rechtsschrift wählen.");
   const exhibit = state.exhibits.find((item) => item.id === exhibitId);
   if (!exhibit) throw new Error("Diese Beilage gibt es nicht.");
-  await host.insertReference(exhibit.id, "…", exhibit.title);
+  await host.insertReference(
+    exhibit.id,
+    buildCitation(state.abbreviation, exhibit.number, exhibit.title, state.citationOrder),
+  );
   const refreshed = await refreshNumbers(host, state);
   const number = refreshed.state.exhibits.find((item) => item.id === exhibit.id)?.number ?? exhibit.number;
   const label = number > 0 ? referenceLabelPlain(state.abbreviation, number) : exhibit.title;
@@ -116,7 +150,7 @@ export async function updateExhibit(
       exhibit.id === exhibitId ? { ...exhibit, title, date } : exhibit,
     ),
   });
-  const written = await host.writeReferenceLabels(labelMap(saved), titleMap(saved));
+  const written = await host.writeReferenceLabels(citationMap(saved));
   const directoryPresent = await refreshDirectory(host, saved);
   return {
     state: saved,
@@ -166,7 +200,7 @@ async function refreshNumbers(host: BeilagenHost, state: BeilagenState) {
   const mentions = await host.readMentions();
   const renumbered = renumberExhibits(state.exhibits, mentions.ids);
   const saved = await host.save({ ...state, exhibits: renumbered.exhibits });
-  const written = await host.writeReferenceLabels(labelMap(saved), titleMap(saved));
+  const written = await host.writeReferenceLabels(citationMap(saved));
   const directoryPresent = await refreshDirectory(host, saved);
   return {
     state: saved,
@@ -182,17 +216,18 @@ async function refreshDirectory(host: BeilagenHost, state: BeilagenState): Promi
   return true;
 }
 
-function labelMap(state: BeilagenState): Map<string, string> {
-  const map = new Map<string, string>();
+function citationMap(state: BeilagenState): Map<string, CitationText> {
+  const map = new Map<string, CitationText>();
   if (!state.abbreviation) return map;
   for (const exhibit of state.exhibits) {
-    if (exhibit.number > 0) map.set(exhibit.id, referenceLabel(state.abbreviation, exhibit.number));
+    if (exhibit.number > 0) {
+      map.set(
+        exhibit.id,
+        buildCitation(state.abbreviation, exhibit.number, exhibit.title, state.citationOrder),
+      );
+    }
   }
   return map;
-}
-
-function titleMap(state: BeilagenState): Map<string, string> {
-  return new Map(state.exhibits.map((exhibit) => [exhibit.id, exhibit.title]));
 }
 
 function warningText(labels: LabelWriteResult, skippedDeleted: number): string | undefined {

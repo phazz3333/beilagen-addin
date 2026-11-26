@@ -9,6 +9,8 @@ export const ABBREVIATION_NAMES: Record<Abbreviation, string> = {
   DB: "Duplikbeilage",
 };
 
+export type CitationOrder = "number-first" | "description-first";
+
 export interface Exhibit {
   id: string;
   title: string;
@@ -23,12 +25,17 @@ export interface BeilagenState {
   revision: number;
   /** ISO-Zeitpunkt der letzten Speicherung, leer bei einem neuen Dokument. */
   savedAt: string;
-  abbreviation: Abbreviation | null;
+  /** KB, AB, RB, DB oder ein eigenes kurzes Kürzel. */
+  abbreviation: string | null;
+  /** Nummer links von der Bezeichnung, oder Bezeichnung mit Nummer in Klammern. */
+  citationOrder: CitationOrder;
   exhibits: Exhibit[];
 }
 
 export const XML_NAMESPACE = "urn:balthasar-legal:beilagen:v1";
 export const REF_TAG_PREFIX = "bl:ref:";
+export const NUMBER_TAG_PREFIX = "bl:num:";
+export const DESCRIPTION_TAG_PREFIX = "bl:desc:";
 export const DIRECTORY_TAG = "bl:verzeichnis";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,10 +44,29 @@ export function isAbbreviation(value: unknown): value is Abbreviation {
   return typeof value === "string" && (ABBREVIATIONS as readonly string[]).includes(value);
 }
 
+export function isPresetPrefix(value: string): value is Abbreviation {
+  return isAbbreviation(value);
+}
+
+/** Buchstaben, Ziffern, Punkt und Bindestrich, höchstens 12 Zeichen. */
+export function sanitizePrefix(input: string): string | null {
+  const compact = input.normalize("NFC").replace(/\s+/g, "");
+  const cut = [...compact].slice(0, 12).join("");
+  if (!cut || !/^[\p{L}\p{N}.-]+$/u.test(cut)) return null;
+  return cut;
+}
+
 export function isExhibitId(value: string): boolean {
   return UUID_RE.test(value);
 }
 
 export function emptyState(): BeilagenState {
-  return { version: 1, revision: 0, savedAt: "", abbreviation: null, exhibits: [] };
+  return {
+    version: 1,
+    revision: 0,
+    savedAt: "",
+    abbreviation: null,
+    citationOrder: "number-first",
+    exhibits: [],
+  };
 }

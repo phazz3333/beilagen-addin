@@ -1,5 +1,5 @@
 import { baseName } from "./filenames";
-import type { Abbreviation, Exhibit } from "./types";
+import type { Exhibit } from "./types";
 
 export interface PdfMatch {
   exhibitId: string;
@@ -8,7 +8,7 @@ export interface PdfMatch {
 
 export function matchPdfFiles(
   fileNames: readonly string[],
-  abbreviation: Abbreviation,
+  abbreviation: string,
   exhibits: readonly Exhibit[],
 ): { matches: PdfMatch[]; unmatched: string[] } {
   const byNumber = new Map<number, string>();
@@ -17,7 +17,7 @@ export function matchPdfFiles(
       byNumber.set(exhibit.number, exhibit.id);
     }
   }
-  const pattern = new RegExp(`^${abbreviation}[\\s._-]*(\\d+)(?!\\d)`, "i");
+  const pattern = new RegExp(`^${escapeRegExp(abbreviation)}[\\s._-]*(\\d+)(?!\\d)`, "i");
   const used = new Set<string>();
   const matches: PdfMatch[] = [];
   const unmatched: string[] = [];
@@ -37,4 +37,8 @@ export function matchPdfFiles(
   }
 
   return { matches, unmatched };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

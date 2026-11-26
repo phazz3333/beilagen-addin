@@ -1,3 +1,4 @@
+import type { CitationText } from "../domain/labels";
 import type { BeilagenState } from "../domain/types";
 
 export interface LabelWriteResult {
@@ -26,12 +27,9 @@ export interface BeilagenHost {
   readonly inWord: boolean;
   load(): Promise<BeilagenState>;
   save(state: BeilagenState): Promise<BeilagenState>;
-  insertReference(exhibitId: string, label: string, title: string): Promise<void>;
+  insertReference(exhibitId: string, citation: CitationText): Promise<void>;
   readMentions(): Promise<MentionRead>;
-  writeReferenceLabels(
-    labels: ReadonlyMap<string, string>,
-    titles: ReadonlyMap<string, string>,
-  ): Promise<LabelWriteResult>;
+  writeReferenceLabels(citations: ReadonlyMap<string, CitationText>): Promise<LabelWriteResult>;
   directoryCount(): Promise<number>;
   upsertDirectory(html: string, plain: string): Promise<DirectoryWriteResult>;
   tracking(): Promise<TrackingState>;

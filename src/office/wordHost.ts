@@ -1,6 +1,14 @@
-import { normalizeLabel } from "../domain/labels";
+import { reapplicableFont, type FontStyle } from "../domain/fontStyle";
+import { normalizeLabel, planCitationUpdate, type CitationText } from "../domain/labels";
 import { parseState, pickNewest, serializeState } from "../domain/storage";
-import { parseReferenceTag, referenceTag } from "../domain/tags";
+import {
+  descriptionTag,
+  numberTag,
+  parseDescriptionTag,
+  parseNumberTag,
+  parseReferenceTag,
+  referenceTag,
+} from "../domain/tags";
 import { DIRECTORY_TAG, XML_NAMESPACE, emptyState, type BeilagenState } from "../domain/types";
 import type {
   BeilagenHost,
@@ -39,19 +47,16 @@ export class WordHost implements BeilagenHost {
     });
   }
 
-  insertReference(exhibitId: string, label: string, title: string): Promise<void> {
-    return this.enqueue(() => insertReferenceControl(exhibitId, label, title));
+  insertReference(exhibitId: string, citation: CitationText): Promise<void> {
+    return this.enqueue(() => insertReferenceControl(exhibitId, citation));
   }
 
   readMentions(): Promise<MentionRead> {
     return this.enqueue(() => readMentionOrder());
   }
 
-  writeReferenceLabels(
-    labels: ReadonlyMap<string, string>,
-    titles: ReadonlyMap<string, string>,
-  ): Promise<LabelWriteResult> {
-    return this.enqueue(() => writeLabels(labels, titles));
+  writeReferenceLabels(citations: ReadonlyMap<string, CitationText>): Promise<LabelWriteResult> {
+    return this.enqueue(() => writeLabels(citations));
   }
 
   directoryCount(): Promise<number> {
@@ -150,18 +155,16 @@ function writeXml(xml: string): Promise<void> {
   });
 }
 
-async function insertReferenceControl(exhibitId: string, label: string, title: string): Promise<void> {
+async function insertReferenceControl(exhibitId: string, citation: CitationText): Promise<void> {
   await Word.run(async (context) => {
     const selection = context.document.getSelection();
-    const inserted = selection.insertText(label, Word.InsertLocation.end);
-    const control = inserted.insertContentControl();
-    control.tag = referenceTag(exhibitId);
-    control.title = clipTitle(title);
-    control.appearance = Word.ContentControlAppearance.boundingBox;
-    control.cannotEdit = true;
-    control.cannotDelete = false;
-    control.color = NAVY;
+    const inserted = selection.insertText(citation.plain, Word.InsertLocation.end);
+    const outer = inserted.insertContentControl();
+    markOuter(outer, citation.description, exhibitId);
     await context.sync();
+    if (Office.context.requirements.isSetSupported("WordApi", "1.3")) {
+      await composeCitation(context, outer, citation, exhibitId);
+    }
   });
 }
 
@@ -242,10 +245,7 @@ function isAfter(value: Word.LocationRelation | string): boolean {
   return text === "After" || text === "AdjacentAfter";
 }
 
-async function writeLabels(
-  labels: ReadonlyMap<string, string>,
-  titles: ReadonlyMap<string, string>,
-): Promise<LabelWriteResult> {
+async function writeLabels(citations: ReadonlyMap<string, CitationText>): Promise<LabelWriteResult> {
   const result: LabelWriteResult = {
     updated: 0,
     unchanged: 0,
@@ -253,59 +253,184 @@ async function writeLabels(
     unknown: 0,
     tracked: 0,
   };
+  const supportsPieces = Office.context.requirements.isSetSupported("WordApi", "1.3");
   const supportsReview = Office.context.requirements.isSetSupported("WordApi", "1.4");
 
   await Word.run(async (context) => {
     const controls = context.document.body.contentControls;
-    controls.load("items/tag,text,cannotEdit,title");
+    controls.load("items/tag");
     await context.sync();
-
     const targets = controls.items.filter((control) => parseReferenceTag(control.tag));
-    const pending: Word.ContentControl[] = [];
-    for (const control of targets) {
-      const id = parseReferenceTag(control.tag)!;
-      if (!labels.has(id)) {
+
+    for (const outer of targets) {
+      const id = parseReferenceTag(outer.tag)!;
+      const citation = citations.get(id);
+      if (!citation) {
         result.unknown += 1;
         continue;
       }
-      const title = titles.get(id);
-      if (title) control.title = clipTitle(title);
-      const expected = normalizeLabel(labels.get(id)!);
-      if (normalizeLabel(control.text) === expected) {
-        result.unchanged += 1;
+      outer.title = clipTitle(citation.description);
+      outer.cannotEdit = false;
+      outer.cannotDelete = true;
+      if (!supportsPieces) {
+        const changed = await replaceTextKeepingFont(context, outer, citation.plain);
+        outer.cannotDelete = false;
+        if (changed) result.updated += 1;
+        else result.unchanged += 1;
         continue;
       }
-      control.cannotEdit = false;
-      pending.push(control);
+
+      const nested = outer.contentControls;
+      nested.load("items/tag,text");
+      await context.sync();
+      const numberControl = nested.items.find((item) => parseNumberTag(item.tag));
+      const descriptionControl = nested.items.find((item) => parseDescriptionTag(item.tag));
+      let currentOrder: CitationText["order"] | null = null;
+      if (numberControl && descriptionControl) {
+        const relation = numberControl.getRange().compareLocationWith(descriptionControl.getRange());
+        await context.sync();
+        currentOrder = isAfter(relation.value) ? "description-first" : "number-first";
+      }
+      const plan = planCitationUpdate({
+        hasNumberControl: Boolean(numberControl),
+        hasDescriptionControl: Boolean(descriptionControl),
+        currentOrder,
+        desired: citation,
+        currentNumberText: numberControl?.text ?? "",
+        currentDescription: descriptionControl?.text ?? "",
+      });
+      if (plan.rebuild) {
+        const fallbackFont = await readFont(context, outer);
+        const numberFont = numberControl ? await readFont(context, numberControl) : fallbackFont;
+        const descriptionFont = descriptionControl ? await readFont(context, descriptionControl) : fallbackFont;
+        await composeCitation(context, outer, citation, id);
+        const fresh = outer.contentControls;
+        fresh.load("items/tag");
+        await context.sync();
+        const nextNumber = fresh.items.find((item) => parseNumberTag(item.tag));
+        const nextDescription = fresh.items.find((item) => parseDescriptionTag(item.tag));
+        if (nextNumber) applyFont(nextNumber.font, numberFont);
+        if (nextDescription) applyFont(nextDescription.font, descriptionFont);
+        await context.sync();
+        result.updated += 1;
+      } else {
+        let changed = false;
+        if (plan.updateNumber && numberControl) {
+          changed = (await replaceTextKeepingFont(context, numberControl, citation.numberText)) || changed;
+        }
+        if (plan.updateDescription && descriptionControl) {
+          changed = (await replaceTextKeepingFont(context, descriptionControl, citation.description)) || changed;
+        }
+        if (changed && supportsReview && numberControl && plan.updateNumber) {
+          numberControl.load("text");
+          const reviewed = numberControl.getReviewedText("Current");
+          await context.sync();
+          const expected = normalizeLabel(citation.numberText);
+          if (normalizeLabel(numberControl.text) === expected) result.updated += 1;
+          else if (normalizeLabel(reviewed.value) === expected) result.tracked += 1;
+          else result.mismatched += 1;
+        } else if (changed) result.updated += 1;
+        else result.unchanged += 1;
+      }
+      outer.cannotDelete = false;
     }
     await context.sync();
-
-    for (const control of pending) {
-      const id = parseReferenceTag(control.tag)!;
-      control.insertText(labels.get(id)!, Word.InsertLocation.replace);
-      control.cannotEdit = true;
-    }
-    await context.sync();
-
-    for (const control of pending) control.load("text");
-    const reviewed: OfficeExtension.ClientResult<string>[] = [];
-    if (supportsReview) {
-      for (const control of pending) reviewed.push(control.getReviewedText("Current"));
-    }
-    await context.sync();
-
-    pending.forEach((control, index) => {
-      const id = parseReferenceTag(control.tag)!;
-      const expected = normalizeLabel(labels.get(id)!);
-      const raw = normalizeLabel(control.text);
-      const current = supportsReview ? normalizeLabel(reviewed[index].value) : raw;
-      if (raw === expected) result.updated += 1;
-      else if (current === expected) result.tracked += 1;
-      else result.mismatched += 1;
-    });
   });
 
   return result;
+}
+
+function markOuter(control: Word.ContentControl, description: string, exhibitId: string): void {
+  control.tag = referenceTag(exhibitId);
+  control.title = clipTitle(description);
+  control.appearance = Word.ContentControlAppearance.boundingBox;
+  control.cannotEdit = false;
+  control.cannotDelete = false;
+  control.color = NAVY;
+}
+
+async function composeCitation(
+  context: Word.RequestContext,
+  outer: Word.ContentControl,
+  citation: CitationText,
+  exhibitId: string,
+): Promise<void> {
+  outer.cannotDelete = true;
+  outer.cannotEdit = false;
+  const range = outer.getRange(Word.RangeLocation.content);
+  if (citation.order === "number-first") {
+    const numberRange = range.insertText(citation.numberText, Word.InsertLocation.replace);
+    const numberControl = numberRange.insertContentControl();
+    markPiece(numberControl, numberTag(exhibitId));
+    await context.sync();
+    const separator = numberControl.getRange(Word.RangeLocation.whole).insertText(" ", Word.InsertLocation.after);
+    const descriptionRange = separator.insertText(citation.description, Word.InsertLocation.after);
+    markPiece(descriptionRange.insertContentControl(), descriptionTag(exhibitId));
+  } else {
+    const descriptionRange = range.insertText(citation.description, Word.InsertLocation.replace);
+    const descriptionControl = descriptionRange.insertContentControl();
+    markPiece(descriptionControl, descriptionTag(exhibitId));
+    await context.sync();
+    const opener = descriptionControl.getRange(Word.RangeLocation.whole).insertText(" (", Word.InsertLocation.after);
+    const numberRange = opener.insertText(citation.numberText, Word.InsertLocation.after);
+    const numberControl = numberRange.insertContentControl();
+    markPiece(numberControl, numberTag(exhibitId));
+    await context.sync();
+    numberControl.getRange(Word.RangeLocation.whole).insertText(")", Word.InsertLocation.after);
+  }
+  outer.cannotDelete = false;
+  await context.sync();
+}
+
+function markPiece(control: Word.ContentControl, tag: string): void {
+  control.tag = tag;
+  control.appearance = Word.ContentControlAppearance.hidden;
+  control.cannotEdit = false;
+  control.cannotDelete = false;
+}
+
+async function replaceTextKeepingFont(
+  context: Word.RequestContext,
+  control: Word.ContentControl,
+  text: string,
+): Promise<boolean> {
+  control.load("text");
+  control.font.load("bold,italic,name,size,color,underline");
+  await context.sync();
+  if (normalizeLabel(control.text) === normalizeLabel(text)) return false;
+  const style = readFontValue(control.font);
+  control.cannotEdit = false;
+  control.insertText(text, Word.InsertLocation.replace);
+  applyFont(control.font, style);
+  await context.sync();
+  return true;
+}
+
+async function readFont(context: Word.RequestContext, control: Word.ContentControl): Promise<FontStyle> {
+  control.font.load("bold,italic,name,size,color,underline");
+  await context.sync();
+  return readFontValue(control.font);
+}
+
+function readFontValue(font: Word.Font): FontStyle {
+  return {
+    bold: typeof font.bold === "boolean" ? font.bold : null,
+    italic: typeof font.italic === "boolean" ? font.italic : null,
+    name: typeof font.name === "string" ? font.name : null,
+    size: typeof font.size === "number" ? font.size : null,
+    color: typeof font.color === "string" ? font.color : null,
+    underline: font.underline ? String(font.underline) : null,
+  };
+}
+
+function applyFont(font: Word.Font, style: FontStyle): void {
+  const keep = reapplicableFont(style);
+  if (typeof keep.bold === "boolean") font.bold = keep.bold;
+  if (typeof keep.italic === "boolean") font.italic = keep.italic;
+  if (keep.name) font.name = keep.name;
+  if (typeof keep.size === "number") font.size = keep.size;
+  if (keep.color) font.color = keep.color;
+  if (keep.underline) font.underline = keep.underline as Word.UnderlineType;
 }
 
 async function countDirectories(): Promise<number> {

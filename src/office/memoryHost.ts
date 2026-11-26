@@ -1,3 +1,4 @@
+import type { CitationText } from "../domain/labels";
 import { parseState, serializeState } from "../domain/storage";
 import { emptyState, type BeilagenState } from "../domain/types";
 import type {
@@ -52,7 +53,7 @@ export class MemoryHost implements BeilagenHost {
   }
 
   async writeReferenceLabels(
-    labels: ReadonlyMap<string, string>,
+    labels: ReadonlyMap<string, CitationText>,
   ): Promise<LabelWriteResult> {
     let updated = 0;
     let unknown = 0;

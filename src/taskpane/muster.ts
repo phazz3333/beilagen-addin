@@ -12,6 +12,7 @@ export function musterState(): BeilagenState {
     revision: 1,
     savedAt: "",
     abbreviation: "KB",
+    citationOrder: "number-first",
     exhibits: [
       { id: MUSTER_IDS.vertrag, title: "Kaufvertrag Muster", date: "2024-03-12", number: 1 },
       { id: MUSTER_IDS.schreiben, title: "Schreiben Gegenseite Muster", date: "2024-04-02", number: 2 },

@@ -1,5 +1,3 @@
-import type { Abbreviation } from "./types";
-
 const ILLEGAL = /[\\/:*?"<>|]/g;
 
 export function baseName(fileName: string): string {
@@ -19,7 +17,7 @@ export function sanitizeFileStem(title: string): string {
   return cut || "Beilage";
 }
 
-export function exhibitFileName(abbreviation: Abbreviation, number: number, title: string): string {
+export function exhibitFileName(abbreviation: string, number: number, title: string): string {
   if (!Number.isInteger(number) || number < 1) {
     throw new Error("Der Dateiname braucht eine Nummer ab 1.");
   }
@@ -29,6 +27,6 @@ export function exhibitFileName(abbreviation: Abbreviation, number: number, titl
 
 export const DIRECTORY_PDF_NAME = "00 Beweismittelverzeichnis.pdf";
 
-export function packageZipName(abbreviation: Abbreviation): string {
+export function packageZipName(abbreviation: string): string {
   return `Beilagen-${abbreviation}.zip`;
 }
