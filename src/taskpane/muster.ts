@@ -14,9 +14,9 @@ export function musterState(): BeilagenState {
     abbreviation: "KB",
     citationOrder: "number-first",
     exhibits: [
-      { id: MUSTER_IDS.vertrag, title: "Kaufvertrag Muster", date: "2024-03-12", number: 1 },
-      { id: MUSTER_IDS.schreiben, title: "Schreiben Gegenseite Muster", date: "2024-04-02", number: 2 },
-      { id: MUSTER_IDS.konto, title: "Kontoauszug Muster", date: "2024-01-18", number: 3 },
+      { id: MUSTER_IDS.vertrag, title: "Kaufvertrag Muster", number: 1 },
+      { id: MUSTER_IDS.schreiben, title: "Schreiben Gegenseite Muster", number: 2 },
+      { id: MUSTER_IDS.konto, title: "Kontoauszug Muster", number: 3 },
     ],
   };
 }

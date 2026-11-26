@@ -7,7 +7,7 @@ import {
   type CitationOrder,
   type Exhibit,
 } from "./types";
-import { escapeXml, normalizeDate, sanitizeTitle, unescapeXml } from "./text";
+import { escapeXml, sanitizeTitle, unescapeXml } from "./text";
 
 const TAG = "(?:[\\w.-]+:)?";
 
@@ -18,8 +18,7 @@ export function serializeState(state: BeilagenState): string {
   const folge = state.citationOrder === "description-first" ? "bezeichnung" : "nummer";
   const entries = state.exhibits
     .map((exhibit) => {
-      const datum = exhibit.date ? ` datum="${escapeXml(exhibit.date)}"` : "";
-      return `<Eintrag id="${escapeXml(exhibit.id)}" nummer="${exhibit.number}"${datum}><Bezeichnung>${escapeXml(exhibit.title)}</Bezeichnung></Eintrag>`;
+      return `<Eintrag id="${escapeXml(exhibit.id)}" nummer="${exhibit.number}"><Bezeichnung>${escapeXml(exhibit.title)}</Bezeichnung></Eintrag>`;
     })
     .join("");
   return `<Beilagen xmlns="${XML_NAMESPACE}" version="1" revision="${state.revision}" savedAt="${escapeXml(state.savedAt)}" folge="${folge}">${kuerzel}${entries}</Beilagen>`;
@@ -52,11 +51,10 @@ export function parseState(xml: string): BeilagenState {
     const titleMatch = entry[2].match(new RegExp(`<${TAG}Bezeichnung>([\\s\\S]*?)</${TAG}Bezeichnung>`));
     const title = sanitizeTitle(titleMatch ? unescapeXml(titleMatch[1]) : "");
     if (!title) continue;
-    const date = normalizeDate(attr(entry[1], "datum") ?? "");
     const numberRaw = Number(attr(entry[1], "nummer") ?? "0");
     const number = Number.isInteger(numberRaw) && numberRaw > 0 && numberRaw < 10000 ? numberRaw : 0;
     seen.add(id);
-    exhibits.push({ id, title, date, number });
+    exhibits.push({ id, title, number });
   }
 
   if (!Number.isInteger(revision) || revision < 0) {

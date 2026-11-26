@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import { renumberExhibits } from "../src/domain/numbering";
 import type { Exhibit } from "../src/domain/types";
 
-const a: Exhibit = { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag", date: "2024-03-12", number: 9 };
-const b: Exhibit = { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben", date: "", number: 2 };
-const c: Exhibit = { id: "33333333-3333-4333-8333-333333333333", title: "Kontoauszug", date: "2024-01-18", number: 1 };
+const a: Exhibit = { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag", number: 9 };
+const b: Exhibit = { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben", number: 2 };
+const c: Exhibit = { id: "33333333-3333-4333-8333-333333333333", title: "Kontoauszug", number: 1 };
 
 describe("renumberExhibits", () => {
   it("nummeriert nach der ersten Nennung", () => {

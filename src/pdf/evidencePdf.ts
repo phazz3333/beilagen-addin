@@ -31,11 +31,11 @@ export async function buildDirectoryPdf(model: DirectoryModel): Promise<Uint8Arr
   drawLine(model.kind, 11, regular, rgb(0.35, 0.35, 0.38));
   y -= 8;
 
-  const columns = [MARGIN, MARGIN + 70, MARGIN + 360];
+  const columns = [MARGIN, MARGIN + 70];
   const tableRight = PAGE_WIDTH - MARGIN;
   const rowFont = 10;
 
-  const drawRow = (cells: [string, string, string], header: boolean) => {
+  const drawRow = (cells: string[], header: boolean) => {
     const font = header ? bold : regular;
     const wrapped = cells.map((cell, index) => {
       const width = (index === cells.length - 1 ? tableRight : columns[index + 1]) - columns[index] - 8;
@@ -65,12 +65,12 @@ export async function buildDirectoryPdf(model: DirectoryModel): Promise<Uint8Arr
     y = top - rowHeight;
   };
 
-  drawRow(["Nr.", "Bezeichnung", "Datum"], true);
+  drawRow(["Nr.", "Bezeichnung"], true);
   if (model.rows.length === 0) {
-    drawRow(["–", "Keine Beilage", "–"], false);
+    drawRow(["–", "Keine Beilage"], false);
   } else {
     for (const row of model.rows) {
-      drawRow([row.label, row.title, row.date], false);
+      drawRow([row.label, row.title], false);
     }
   }
   page.drawLine({

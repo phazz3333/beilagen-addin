@@ -55,8 +55,8 @@ describe("PDF-Stempel", () => {
       abbreviation: "KB",
       citationOrder: "number-first",
       exhibits: [
-        { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben Müller", date: "2024-04-02", number: 2 },
-        { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag", date: "2024-03-12", number: 1 },
+        { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben Müller", number: 2 },
+        { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag", number: 1 },
       ],
     };
     const files = new Map<string, Uint8Array>([
@@ -79,11 +79,9 @@ describe("PDF-Stempel", () => {
     expect(directoryText).toContain("Beweismittelverzeichnis");
     expect(directoryText).toContain("Kaufvertrag");
     expect(directoryText).toContain("Schreiben Müller");
-    expect(directoryText).toContain("12.03.2024");
     if (poppler) {
       const text = pdfPageText(directory, 1);
       expect(text).toContain("Schreiben Müller");
-      expect(text).toContain("12.03.2024");
     }
 
     await expect(createExhibitPackage(state, new Map())).rejects.toThrow(/noch kein PDF/);

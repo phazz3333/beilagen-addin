@@ -10,7 +10,6 @@ import {
   type CitationOrder,
   type Exhibit,
 } from "../domain/types";
-import { formatSwissDate } from "../domain/text";
 import { matchPdfFiles } from "../domain/matchPdfs";
 import type { BeilagenHost, TrackingState } from "../office/host";
 import {
@@ -19,7 +18,7 @@ import {
   insertExistingExhibit,
   insertNewExhibit,
   placeDirectory,
-  removeOrphan,
+  removeExhibit,
   renumberDocument,
   updateExhibit,
 } from "./actions";
@@ -46,7 +45,6 @@ const MAX_PDF = 80 * 1024 * 1024;
 
 export function App({ host, muster, wordApi }: AppProps) {
   const titleId = useId();
-  const dateId = useId();
   const prefixId = useId();
   const [state, setState] = useState<BeilagenState>(emptyState());
   const [loading, setLoading] = useState(true);
@@ -56,7 +54,6 @@ export function App({ host, muster, wordApi }: AppProps) {
   const [warning, setWarning] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
   const [pendingAbbr, setPendingAbbr] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState<CitationOrder | null>(null);
   const [customDraft, setCustomDraft] = useState("");
@@ -65,7 +62,6 @@ export function App({ host, muster, wordApi }: AppProps) {
   const [files, setFiles] = useState<Map<string, StoredPdf>>(new Map());
   const [editing, setEditing] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [editDate, setEditDate] = useState("");
   const [readyZip, setReadyZip] = useState<ReadyZip | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -77,7 +73,16 @@ export function App({ host, muster, wordApi }: AppProps) {
       .load()
       .then(async (loaded) => {
         if (cancelled) return;
-        setState(loaded);
+        let current = loaded;
+        if (host.inWord && loaded.abbreviation) {
+          try {
+            current = (await renumberDocument(host, loaded)).state;
+          } catch {
+            current = loaded;
+          }
+        }
+        if (cancelled) return;
+        setState(current);
         const [count, track] = await Promise.all([host.directoryCount(), host.tracking()]);
         if (cancelled) return;
         setDirectoryPresent(count > 0);
@@ -328,9 +333,8 @@ export function App({ host, muster, wordApi }: AppProps) {
               onSubmit={(event) => {
                 event.preventDefault();
                 void run(async () => {
-                  const result = await insertNewExhibit(host, state, { title, date });
+                  const result = await insertNewExhibit(host, state, { title });
                   setTitle("");
-                  setDate("");
                   return result;
                 });
               }}
@@ -344,8 +348,6 @@ export function App({ host, muster, wordApi }: AppProps) {
                 onChange={(event) => setTitle(event.target.value)}
                 placeholder="Kaufvertrag vom 3. März 2025"
               />
-              <label htmlFor={dateId}>Datum, optional</label>
-              <input id={dateId} type="date" value={date} disabled={busy} onChange={(event) => setDate(event.target.value)} />
               <p className="hint">Reihenfolge im Verweis</p>
               <div className="segmented order" role="radiogroup" aria-label="Reihenfolge im Verweis">
                 <button type="button" role="radio" aria-checked={state.citationOrder === "number-first"} disabled={busy} onClick={() => chooseOrder("number-first")}>
@@ -416,7 +418,7 @@ export function App({ host, muster, wordApi }: AppProps) {
               Nummern folgen der ersten Nennung. Nach dem Verschieben von Text neu nummerieren.
               {!host.inWord ? " Das Verzeichnis wird in Word an der Cursorposition eingefügt." : " Ein bestehendes Verzeichnis wird an Ort ersetzt, manuelle Ergänzungen darin gehen verloren."}
             </p>
-            <p className="hint">Gemäss Art. 221 Abs. 2 lit. d ZPO: Nummer, Bezeichnung und Datum.</p>
+            <p className="hint">Gemäss Art. 221 Abs. 2 lit. d ZPO: Nummer und Bezeichnung.</p>
             <details className="disclosure" open={tracking === "on"}>
               <summary>Änderungsverfolgung</summary>
               <p>
@@ -443,23 +445,20 @@ export function App({ host, muster, wordApi }: AppProps) {
                   busy={busy}
                   editing={editing === exhibit.id}
                   editTitle={editTitle}
-                  editDate={editDate}
                   onEdit={() => {
                     setEditing(exhibit.id);
                     setEditTitle(exhibit.title);
-                    setEditDate(exhibit.date);
                   }}
                   onCancel={() => setEditing(null)}
                   onEditTitle={setEditTitle}
-                  onEditDate={setEditDate}
                   onSave={() => {
                     void run(async () => {
-                      const result = await updateExhibit(host, state, exhibit.id, { title: editTitle, date: editDate });
+                      const result = await updateExhibit(host, state, exhibit.id, { title: editTitle });
                       setEditing(null);
                       return result;
                     });
                   }}
-                  onRemove={() => void run(() => removeOrphan(host, state, exhibit.id))}
+                  onRemove={() => void run(() => removeExhibit(host, state, exhibit.id))}
                   onFile={(list) => void onPickFile(exhibit.id, list)}
                   onClear={() => {
                     setFiles((current) => {
@@ -532,7 +531,6 @@ function ExistingList({
             <span className="pill">{exhibit.number > 0 && state.abbreviation ? referenceLabelPlain(state.abbreviation, exhibit.number) : "ohne Nr."}</span>
             <span className="existing-copy">
               <span className="title">{exhibit.title}</span>
-              <span className="meta">{formatSwissDate(exhibit.date) || "ohne Datum"}</span>
             </span>
           </button>
         </li>
@@ -549,11 +547,9 @@ function ExhibitRow({
   busy,
   editing,
   editTitle,
-  editDate,
   onEdit,
   onCancel,
   onEditTitle,
-  onEditDate,
   onSave,
   onRemove,
   onFile,
@@ -566,17 +562,16 @@ function ExhibitRow({
   busy: boolean;
   editing: boolean;
   editTitle: string;
-  editDate: string;
   onEdit: () => void;
   onCancel: () => void;
   onEditTitle: (value: string) => void;
-  onEditDate: (value: string) => void;
   onSave: () => void;
   onRemove: () => void;
   onFile: (list: FileList | null) => void;
   onClear: () => void;
 }) {
   const inputId = useId();
+  const [confirming, setConfirming] = useState(false);
   const label = exhibit.number > 0 && abbreviation ? referenceLabelPlain(abbreviation, exhibit.number) : "ohne Nr.";
   return (
     <li className="exhibit">
@@ -588,7 +583,6 @@ function ExhibitRow({
               ? buildCitation(abbreviation, exhibit.number, exhibit.title, citationOrder).plain.replaceAll("\u00A0", " ")
               : exhibit.title}
           </span>
-          <span className="meta">{formatSwissDate(exhibit.date) || "ohne Datum"}</span>
           <span className={file ? "file-ok" : "file-miss"}>{file ? file.name : "PDF fehlt"}</span>
         </div>
       </div>
@@ -607,8 +601,17 @@ function ExhibitRow({
         />
         {file ? <button type="button" className="text" disabled={busy} onClick={onClear}>PDF entfernen</button> : null}
         <button type="button" className="text" disabled={busy} onClick={onEdit}>Bearbeiten</button>
-        {exhibit.number === 0 ? <button type="button" className="text danger" disabled={busy} onClick={onRemove}>Entfernen</button> : null}
+        <button type="button" className="text danger" disabled={busy} onClick={() => setConfirming(true)}>Entfernen</button>
       </div>
+      {confirming ? (
+        <div className="confirm">
+          <p>Beilage entfernen? Alle Verweise im Text werden gelöscht.</p>
+          <div className="row">
+            <button type="button" className="primary" disabled={busy} onClick={onRemove}>Entfernen</button>
+            <button type="button" className="secondary" disabled={busy} onClick={() => setConfirming(false)}>Abbrechen</button>
+          </div>
+        </div>
+      ) : null}
       {editing ? (
         <form
           className="edit"
@@ -619,9 +622,6 @@ function ExhibitRow({
         >
           <label>Bezeichnung
             <input value={editTitle} maxLength={200} onChange={(event) => onEditTitle(event.target.value)} />
-          </label>
-          <label>Datum
-            <input type="date" value={editDate} onChange={(event) => onEditDate(event.target.value)} />
           </label>
           <div className="row">
             <button type="submit" className="primary" disabled={busy || editTitle.trim() === ""}>Übernehmen</button>

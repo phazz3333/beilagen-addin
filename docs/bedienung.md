@@ -21,7 +21,7 @@ Für das offene Dokument eines wählen:
 
 Die Wahl wird im Dokument gespeichert. Darunter steht ein Feld für ein eigenes Kürzel, zum Beispiel «BV». Es gelten Buchstaben, Ziffern, Punkt und Bindestrich, höchstens 12 Zeichen. Ein späterer Wechsel schreibt alle sichtbaren Verweise um, zum Beispiel von «KB 1» auf «AB 1». Gibt es schon Beilagen, fragt der Aufgabenbereich nach.
 
-Neben dem Kürzel liegt die Bezeichnung der einzelnen Beilage, zum Beispiel «Kaufvertrag vom 3. März 2025». Das Datum bleibt frei. Die Reihenfolge wird ebenfalls im Dokument gespeichert. Voreingestellt ist die Nummer links, getrennt durch ein Leerzeichen: «KB 1 Kaufvertrag vom 3. März 2025». «Bezeichnung zuerst» setzt die Nummer in Klammern: «Kaufvertrag vom 3. März 2025 (KB 1)».
+Neben dem Kürzel liegt die Bezeichnung der einzelnen Beilage, zum Beispiel «Kaufvertrag vom 3. März 2025». Die Reihenfolge wird ebenfalls im Dokument gespeichert. Voreingestellt ist die Nummer links, getrennt durch ein Leerzeichen: «KB 1 Kaufvertrag vom 3. März 2025». «Bezeichnung zuerst» setzt die Nummer in Klammern: «Kaufvertrag vom 3. März 2025 (KB 1)».
 
 ## Verweis einfügen
 
@@ -31,7 +31,9 @@ Die Nummer «KB 1» enthält ein geschütztes Leerzeichen, damit sie nicht umbri
 
 Fett, kursiv, Schrift, Grösse und Farbe lassen sich in Word auf den Verweis anwenden. «Neu nummerieren» und eine geänderte Bezeichnung ersetzen nur das betreffende Stück und setzen die bisherige einheitliche Zeichenformatierung wieder. Das äussere Inhaltssteuerelement bleibt bestehen. Eine gemischte Formatierung innerhalb der Nummer oder innerhalb der Bezeichnung bleibt, solange dieser Text selbst nicht geändert wird. Wechselt die Reihenfolge, wird der Verweis neu aufgebaut; die einheitliche Formatierung von Nummer und Bezeichnung wird danach wieder gesetzt.
 
-Löschen geht, indem das Inhaltssteuerelement gelöscht wird. Eine von Hand geänderte Nummer wird beim nächsten «Neu nummerieren» überschrieben, die Formatierung bleibt.
+Eine von Hand geänderte Nummer wird beim nächsten «Neu nummerieren» überschrieben, die Formatierung bleibt.
+
+«Entfernen» in der Beilagenliste fragt kurz nach und löscht dann alle Verweise dieser Beilage im Text, den Eintrag in der Liste und ein zugeordnetes PDF. Die übrigen Beilagen werden sofort neu nummeriert, ohne Lücke. Wird ein Verweis in Word von Hand gelöscht und bleibt keiner übrig, verschwindet die Beilage beim nächsten «Neu nummerieren» und auch beim erneuten Öffnen des Aufgabenbereichs. Das zugeordnete PDF fällt dabei weg.
 
 ## Neu nummerieren
 
@@ -41,7 +43,7 @@ Nach dem Umstellen von Absätzen den Knopf erneut drücken. Es gibt keine automa
 
 Nicht einbezogen werden Verweise in Fussnoten, Endnoten, Kopf- und Fusszeilen, Textfeldern und Kommentaren.
 
-Eine Beilage, deren letzter Verweis gelöscht wurde, bleibt in der Liste ohne Nummer. Sie erscheint nicht im Verzeichnis und nicht im ZIP. «Entfernen» löscht nur solche Einträge.
+Eine Beilage ohne verbleibenden Verweis wird dabei aus der Liste genommen. Die Nummern der übrigen Beilagen bleiben lückenlos.
 
 ## Änderungsverfolgung
 
@@ -53,7 +55,7 @@ Schlägt das Schreiben eines Verweises fehl, bleibt die bisherige Nummer stehen 
 
 ## Beweismittelverzeichnis
 
-«Verzeichnis einfügen» setzt an der Cursorposition eine Tabelle mit Nummer, Bezeichnung und Datum. Die Bezeichnung ist dieselbe wie im Verweis. Das entspricht der Bezeichnung der Beweismittel nach Art. 221 Abs. 2 lit. d ZPO. Steht schon ein Verzeichnis im Dokument, wird es an Ort ersetzt. Manuelle Ergänzungen in dieser Tabelle gehen dabei verloren. Verweise gehören in den Text, nicht in die Tabelle. Steht doch einer darin, verweigert die Aktualisierung das Ersetzen, damit der Verweis nicht verloren geht.
+«Verzeichnis einfügen» setzt an der Cursorposition eine Tabelle mit Nummer und Bezeichnung. Die Bezeichnung ist dieselbe wie im Verweis. Das entspricht der Bezeichnung der Beweismittel nach Art. 221 Abs. 2 lit. d ZPO. Steht schon ein Verzeichnis im Dokument, wird es an Ort ersetzt. Manuelle Ergänzungen in dieser Tabelle gehen dabei verloren. Verweise gehören in den Text, nicht in die Tabelle. Steht doch einer darin, verweigert die Aktualisierung das Ersetzen, damit der Verweis nicht verloren geht.
 
 ## PDFs stempeln und paketieren
 

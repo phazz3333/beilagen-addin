@@ -1,5 +1,3 @@
-const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
-
 export function escapeXml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -33,29 +31,4 @@ export function sanitizeTitle(input: string): string {
     .replace(/\s+/g, " ")
     .trim();
   return [...cleaned].slice(0, 200).join("").trim();
-}
-
-export function normalizeDate(input: string): string {
-  const value = input.trim();
-  if (!value) return "";
-  const match = ISO_DATE.exec(value);
-  if (!match) return "";
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return "";
-  }
-  return value;
-}
-
-export function formatSwissDate(iso: string): string {
-  if (!normalizeDate(iso)) return "";
-  const [year, month, day] = iso.split("-");
-  return `${day}.${month}.${year}`;
 }

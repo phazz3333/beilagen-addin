@@ -14,7 +14,6 @@ const base: BeilagenState = {
     {
       id: "11111111-1111-4111-8111-111111111111",
       title: "Kaufvertrag vom 3. März 2025",
-      date: "2025-03-03",
       number: 1,
     },
   ],

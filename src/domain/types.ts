@@ -14,8 +14,6 @@ export type CitationOrder = "number-first" | "description-first";
 export interface Exhibit {
   id: string;
   title: string;
-  /** ISO-Datum YYYY-MM-DD, oder leer wenn keins bekannt ist. */
-  date: string;
   /** 0, solange kein Verweis im Dokument steht. */
   number: number;
 }

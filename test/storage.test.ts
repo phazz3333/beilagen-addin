@@ -9,8 +9,8 @@ const state: BeilagenState = {
   abbreviation: "KB",
   citationOrder: "number-first",
   exhibits: [
-    { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag Müller & Söhne <Entwurf>", date: "2024-03-12", number: 1 },
-    { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben", date: "", number: 0 },
+    { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag Müller & Söhne <Entwurf>", number: 1 },
+    { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben", number: 0 },
   ],
 };
 
@@ -37,11 +37,16 @@ describe("Custom XML", () => {
     </Beilagen>`;
     expect(parseState(xml)).toMatchObject({
       abbreviation: null,
-      exhibits: [{ title: "Vertrag", date: "", number: 2 }],
+      exhibits: [{ title: "Vertrag", number: 2 }],
     });
   });
 
   it("liefert für ein neues Dokument einen leeren Stand", () => {
+    const legacy = `<Beilagen xmlns="urn:balthasar-legal:beilagen:v1" version="1" revision="2" savedAt="" folge="nummer"><Kuerzel>KB</Kuerzel><Eintrag id="11111111-1111-4111-8111-111111111111" nummer="1" datum="2024-03-12"><Bezeichnung>Alt</Bezeichnung></Eintrag></Beilagen>`;
+    expect(parseState(legacy).exhibits).toEqual([
+      { id: "11111111-1111-4111-8111-111111111111", title: "Alt", number: 1 },
+    ]);
+    expect(serializeState(parseState(legacy))).not.toContain("datum=");
     expect(emptyState().abbreviation).toBeNull();
     expect(emptyState().citationOrder).toBe("number-first");
     expect(() => parseState("<anders/>")).toThrow(/unlesbar/);

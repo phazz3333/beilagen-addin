@@ -5,8 +5,8 @@ import { matchPdfFiles } from "../src/domain/matchPdfs";
 import type { Exhibit } from "../src/domain/types";
 
 const exhibits: Exhibit[] = [
-  { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag", date: "", number: 1 },
-  { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben", date: "", number: 2 },
+  { id: "11111111-1111-4111-8111-111111111111", title: "Kaufvertrag", number: 1 },
+  { id: "22222222-2222-4222-8222-222222222222", title: "Schreiben", number: 2 },
 ];
 
 describe("Dateinamen", () => {

@@ -51,6 +51,10 @@ export class WordHost implements BeilagenHost {
     return this.enqueue(() => insertReferenceControl(exhibitId, citation));
   }
 
+  deleteReferences(exhibitId: string): Promise<number> {
+    return this.enqueue(() => deleteReferenceControls(exhibitId));
+  }
+
   readMentions(): Promise<MentionRead> {
     return this.enqueue(() => readMentionOrder());
   }
@@ -152,6 +156,18 @@ function writeXml(xml: string): Promise<void> {
         removeAt(0);
       });
     });
+  });
+}
+
+async function deleteReferenceControls(exhibitId: string): Promise<number> {
+  return Word.run(async (context) => {
+    const found = context.document.body.contentControls.getByTag(referenceTag(exhibitId));
+    found.load("items");
+    await context.sync();
+    const targets = found.items.slice();
+    for (const control of targets) control.delete(false);
+    await context.sync();
+    return targets.length;
   });
 }
 

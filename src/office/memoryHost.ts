@@ -44,6 +44,13 @@ export class MemoryHost implements BeilagenHost {
     this.mentions.push(exhibitId.toLowerCase());
   }
 
+  async deleteReferences(exhibitId: string): Promise<number> {
+    const id = exhibitId.toLowerCase();
+    const before = this.mentions.length;
+    this.mentions = this.mentions.filter((mention) => mention !== id);
+    return before - this.mentions.length;
+  }
+
   async readMentions(): Promise<MentionRead> {
     return { ids: [...this.mentions], skippedDeleted: 0 };
   }

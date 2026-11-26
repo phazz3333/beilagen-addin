@@ -28,6 +28,8 @@ export interface BeilagenHost {
   load(): Promise<BeilagenState>;
   save(state: BeilagenState): Promise<BeilagenState>;
   insertReference(exhibitId: string, citation: CitationText): Promise<void>;
+  /** Löscht alle äusseren Verweise dieser Beilage, inklusive Nummer und Bezeichnung. */
+  deleteReferences(exhibitId: string): Promise<number>;
   readMentions(): Promise<MentionRead>;
   writeReferenceLabels(citations: ReadonlyMap<string, CitationText>): Promise<LabelWriteResult>;
   directoryCount(): Promise<number>;

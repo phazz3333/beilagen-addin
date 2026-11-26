@@ -1,7 +1,7 @@
 import { directoryModel, renderDirectoryHtml, renderDirectoryPlain } from "../domain/directory";
 import { buildCitation, referenceLabelPlain, type CitationText } from "../domain/labels";
 import { renumberExhibits } from "../domain/numbering";
-import { normalizeDate, sanitizeTitle } from "../domain/text";
+import { sanitizeTitle } from "../domain/text";
 import { sanitizePrefix, type BeilagenState, type CitationOrder, type Exhibit } from "../domain/types";
 import type { BeilagenHost, LabelWriteResult } from "../office/host";
 
@@ -63,14 +63,12 @@ export async function changeCitationOrder(
 export async function insertNewExhibit(
   host: BeilagenHost,
   state: BeilagenState,
-  input: { title: string; date: string },
+  input: { title: string },
 ): Promise<ActionResult> {
   if (!state.abbreviation) throw new Error("Zuerst das Kürzel der Rechtsschrift wählen.");
   const title = sanitizeTitle(input.title);
   if (!title) throw new Error("Bitte eine Bezeichnung eingeben.");
-  const date = normalizeDate(input.date);
-  if (input.date.trim() && !date) throw new Error("Das Datum ist ungültig.");
-  const exhibit: Exhibit = { id: crypto.randomUUID(), title, date, number: 0 };
+  const exhibit: Exhibit = { id: crypto.randomUUID(), title, number: 0 };
   await host.insertReference(
     exhibit.id,
     buildCitation(state.abbreviation, 0, title, state.citationOrder),
@@ -120,12 +118,14 @@ export async function insertExistingExhibit(
 export async function renumberDocument(host: BeilagenHost, state: BeilagenState): Promise<ActionResult> {
   if (!state.abbreviation) throw new Error("Zuerst das Kürzel der Rechtsschrift wählen.");
   const refreshed = await refreshNumbers(host, state);
-  const count = refreshed.state.exhibits.filter((exhibit) => exhibit.number > 0).length;
-  const orphans = refreshed.state.exhibits.length - count;
-  const orphanText = orphans > 0 ? `, ${orphans} ohne Verweis` : "";
+  const count = refreshed.state.exhibits.length;
+  const droppedText =
+    refreshed.dropped > 0
+      ? ` ${refreshed.dropped} ohne Verweis entfernt.`
+      : "";
   return {
     state: refreshed.state,
-    status: `Neu nummeriert. ${count} ${count === 1 ? "Beilage" : "Beilagen"}${orphanText}.`,
+    status: `Neu nummeriert. ${count} ${count === 1 ? "Beilage" : "Beilagen"}.${droppedText}`,
     warning: refreshed.warning,
     directoryPresent: refreshed.directoryPresent,
   };
@@ -135,19 +135,17 @@ export async function updateExhibit(
   host: BeilagenHost,
   state: BeilagenState,
   exhibitId: string,
-  patch: { title: string; date: string },
+  patch: { title: string },
 ): Promise<ActionResult> {
   const title = sanitizeTitle(patch.title);
   if (!title) throw new Error("Bitte eine Bezeichnung eingeben.");
-  const date = normalizeDate(patch.date);
-  if (patch.date.trim() && !date) throw new Error("Das Datum ist ungültig.");
   if (!state.exhibits.some((exhibit) => exhibit.id === exhibitId)) {
     throw new Error("Diese Beilage gibt es nicht.");
   }
   const saved = await host.save({
     ...state,
     exhibits: state.exhibits.map((exhibit) =>
-      exhibit.id === exhibitId ? { ...exhibit, title, date } : exhibit,
+      exhibit.id === exhibitId ? { ...exhibit, title } : exhibit,
     ),
   });
   const written = await host.writeReferenceLabels(citationMap(saved));
@@ -160,24 +158,32 @@ export async function updateExhibit(
   };
 }
 
-export async function removeOrphan(
+export async function removeExhibit(
   host: BeilagenHost,
   state: BeilagenState,
   exhibitId: string,
 ): Promise<ActionResult> {
   const exhibit = state.exhibits.find((item) => item.id === exhibitId);
   if (!exhibit) throw new Error("Diese Beilage gibt es nicht.");
-  if (exhibit.number !== 0) {
-    throw new Error("Zuerst alle Verweise auf diese Beilage löschen und neu nummerieren.");
-  }
-  const saved = await host.save({
+  await host.deleteReferences(exhibitId);
+  const remaining = {
     ...state,
     exhibits: state.exhibits.filter((item) => item.id !== exhibitId),
-  });
+  };
+  if (!state.abbreviation) {
+    const saved = await host.save(remaining);
+    return {
+      state: saved,
+      status: `«${exhibit.title}» entfernt.`,
+      directoryPresent: (await host.directoryCount()) > 0,
+    };
+  }
+  const refreshed = await refreshNumbers(host, remaining);
   return {
-    state: saved,
-    status: "Beilage entfernt.",
-    directoryPresent: (await host.directoryCount()) > 0,
+    state: refreshed.state,
+    status: `«${exhibit.title}» entfernt. Die übrigen Nummern sind lückenlos neu vergeben.`,
+    warning: refreshed.warning,
+    directoryPresent: refreshed.directoryPresent,
   };
 }
 
@@ -199,14 +205,40 @@ export async function placeDirectory(host: BeilagenHost, state: BeilagenState): 
 async function refreshNumbers(host: BeilagenHost, state: BeilagenState) {
   const mentions = await host.readMentions();
   const renumbered = renumberExhibits(state.exhibits, mentions.ids);
-  const saved = await host.save({ ...state, exhibits: renumbered.exhibits });
+  const exhibits = renumbered.exhibits.filter((exhibit) => exhibit.number > 0);
+  const dropped = renumbered.orphans.length;
+  const stored = await host.load();
+  if (
+    sameExhibits(stored.exhibits, exhibits) &&
+    stored.abbreviation === state.abbreviation &&
+    stored.citationOrder === state.citationOrder
+  ) {
+    return {
+      state: stored,
+      warning: undefined,
+      directoryPresent: (await host.directoryCount()) > 0,
+      dropped: 0,
+    };
+  }
+  const saved = await host.save({ ...state, exhibits });
   const written = await host.writeReferenceLabels(citationMap(saved));
   const directoryPresent = await refreshDirectory(host, saved);
   return {
     state: saved,
     warning: warningText(written, mentions.skippedDeleted),
     directoryPresent,
+    dropped,
   };
+}
+
+function sameExhibits(current: readonly Exhibit[], next: readonly Exhibit[]): boolean {
+  if (current.length !== next.length) return false;
+  return current.every(
+    (exhibit, index) =>
+      exhibit.id === next[index].id &&
+      exhibit.number === next[index].number &&
+      exhibit.title === next[index].title,
+  );
 }
 
 async function refreshDirectory(host: BeilagenHost, state: BeilagenState): Promise<boolean> {
